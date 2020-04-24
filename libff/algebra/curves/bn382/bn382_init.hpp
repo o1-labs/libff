@@ -15,8 +15,8 @@
 
 namespace libff {
 
-const mp_size_t bn382_r_bitcount = 254;
-const mp_size_t bn382_q_bitcount = 254;
+const mp_size_t bn382_r_bitcount = 382;
+const mp_size_t bn382_q_bitcount = 382;
 
 const mp_size_t bn382_r_limbs = (bn382_r_bitcount+GMP_NUMB_BITS-1)/GMP_NUMB_BITS;
 const mp_size_t bn382_q_limbs = (bn382_q_bitcount+GMP_NUMB_BITS-1)/GMP_NUMB_BITS;
