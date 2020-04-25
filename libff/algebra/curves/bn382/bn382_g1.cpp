@@ -6,6 +6,7 @@
  *****************************************************************************/
 
 #include <libff/algebra/curves/bn382/bn382_g1.hpp>
+#include <libff/algebra/curves/bn382/bn_utils.hpp>
 
 namespace libff {
 
@@ -19,11 +20,61 @@ std::vector<size_t> bn382_G1::fixed_base_exp_window_table;
 bn382_G1 bn382_G1::G1_zero;
 bn382_G1 bn382_G1::G1_one;
 
+bn::Fp bn382_G1::sqrt(const bn::Fp &el)
+{
+    size_t v = bn382_Fq_s;
+    bn::Fp z = bn382_Fq_nqr_to_t;
+    bn::Fp w = mie::power(el, bn382_Fq_t_minus_1_over_2);
+    bn::Fp x = el * w;
+    bn::Fp b = x * w;
+
+#if DEBUG
+    // check if square with Euler's criterion
+    bn::Fp check = b;
+    for (size_t i = 0; i < v-1; ++i)
+    {
+        bn::Fp::square(check, check);
+    }
+
+    assert(check == bn::Fp(1));
+#endif
+
+    // compute square root with Tonelli--Shanks
+    // (does not terminate if not a square!)
+
+    while (b != bn::Fp(1))
+    {
+        size_t m = 0;
+        bn::Fp b2m = b;
+        while (b2m != bn::Fp(1))
+        {
+            // invariant: b2m = b^(2^m) after entering this loop
+            bn::Fp::square(b2m, b2m);
+            m += 1;
+        }
+
+        int j = v-m-1;
+        w = z;
+        while (j > 0)
+        {
+            bn::Fp::square(w, w);
+            --j;
+        } // w = z^2^(v-m-1)
+
+        z = w * w;
+        b = b * z;
+        x = x * w;
+        v = m;
+    }
+
+    return x;
+}
+
 bn382_G1::bn382_G1()
 {
-    this->X = G1_zero.X;
-    this->Y = G1_zero.Y;
-    this->Z = G1_zero.Z;
+    this->coord[0] = G1_zero.coord[0];
+    this->coord[1] = G1_zero.coord[1];
+    this->coord[2] = G1_zero.coord[2];
 }
 
 void bn382_G1::print() const
@@ -36,9 +87,7 @@ void bn382_G1::print() const
     {
         bn382_G1 copy(*this);
         copy.to_affine_coordinates();
-        gmp_printf("(%Nd , %Nd)\n",
-                   copy.X.as_bigint().data, bn382_Fq::num_limbs,
-                   copy.Y.as_bigint().data, bn382_Fq::num_limbs);
+        std::cout << "(" << copy.coord[0].toString(10) << " : " << copy.coord[1].toString(10) << " : " << copy.coord[2].toString(10) << ")\n";
     }
 }
 
@@ -50,10 +99,7 @@ void bn382_G1::print_coordinates() const
     }
     else
     {
-        gmp_printf("(%Nd : %Nd : %Nd)\n",
-                   this->X.as_bigint().data, bn382_Fq::num_limbs,
-                   this->Y.as_bigint().data, bn382_Fq::num_limbs,
-                   this->Z.as_bigint().data, bn382_Fq::num_limbs);
+        std::cout << "(" << coord[0].toString(10) << " : " << coord[1].toString(10) << " : " << coord[2].toString(10) << ")\n";
     }
 }
 
@@ -61,18 +107,20 @@ void bn382_G1::to_affine_coordinates()
 {
     if (this->is_zero())
     {
-        this->X = bn382_Fq::zero();
-        this->Y = bn382_Fq::one();
-        this->Z = bn382_Fq::zero();
+        coord[0] = 0;
+        coord[1] = 1;
+        coord[2] = 0;
     }
     else
     {
-        bn382_Fq Z_inv = Z.inverse();
-        bn382_Fq Z2_inv = Z_inv.squared();
-        bn382_Fq Z3_inv = Z2_inv * Z_inv;
-        this->X = this->X * Z2_inv;
-        this->Y = this->Y * Z3_inv;
-        this->Z = bn382_Fq::one();
+        bn::Fp r;
+        r = coord[2];
+        r.inverse();
+        bn::Fp::square(coord[2], r);
+        coord[0] *= coord[2];
+        r *= coord[2];
+        coord[1] *= r;
+        coord[2] = 1;
     }
 }
 
@@ -83,12 +131,12 @@ void bn382_G1::to_special()
 
 bool bn382_G1::is_special() const
 {
-    return (this->is_zero() || this->Z == bn382_Fq::one());
+    return (this->is_zero() || this->coord[2] == 1);
 }
 
 bool bn382_G1::is_zero() const
 {
-    return (this->Z.is_zero());
+    return coord[2].isZero();
 }
 
 bool bn382_G1::operator==(const bn382_G1 &other) const
@@ -105,30 +153,24 @@ bool bn382_G1::operator==(const bn382_G1 &other) const
 
     /* now neither is O */
 
-    // using Jacobian coordinates so:
-    // (X1:Y1:Z1) = (X2:Y2:Z2)
-    // iff
-    // X1/Z1^2 == X2/Z2^2 and Y1/Z1^3 == Y2/Z2^3
-    // iff
-    // X1 * Z2^2 == X2 * Z1^2 and Y1 * Z2^3 == Y2 * Z1^3
+    bn::Fp Z1sq, Z2sq, lhs, rhs;
+    bn::Fp::square(Z1sq, this->coord[2]);
+    bn::Fp::square(Z2sq, other.coord[2]);
+    bn::Fp::mul(lhs, Z2sq, this->coord[0]);
+    bn::Fp::mul(rhs, Z1sq, other.coord[0]);
 
-    bn382_Fq Z1_squared = (this->Z).squared();
-    bn382_Fq Z2_squared = (other.Z).squared();
-
-    if ((this->X * Z2_squared) != (other.X * Z1_squared))
+    if (lhs != rhs)
     {
         return false;
     }
 
-    bn382_Fq Z1_cubed = (this->Z) * Z1_squared;
-    bn382_Fq Z2_cubed = (other.Z) * Z2_squared;
+    bn::Fp Z1cubed, Z2cubed;
+    bn::Fp::mul(Z1cubed, Z1sq, this->coord[2]);
+    bn::Fp::mul(Z2cubed, Z2sq, other.coord[2]);
+    bn::Fp::mul(lhs, Z2cubed, this->coord[1]);
+    bn::Fp::mul(rhs, Z1cubed, other.coord[1]);
 
-    if ((this->Y * Z2_cubed) != (other.Y * Z1_cubed))
-    {
-        return false;
-    }
-
-    return true;
+    return (lhs == rhs);
 }
 
 bool bn382_G1::operator!=(const bn382_G1& other) const
@@ -152,53 +194,23 @@ bn382_G1 bn382_G1::operator+(const bn382_G1 &other) const
     // no need to handle points of order 2,4
     // (they cannot exist in a prime-order subgroup)
 
-    // check for doubling case
-
-    // using Jacobian coordinates so:
-    // (X1:Y1:Z1) = (X2:Y2:Z2)
-    // iff
-    // X1/Z1^2 == X2/Z2^2 and Y1/Z1^3 == Y2/Z2^3
-    // iff
-    // X1 * Z2^2 == X2 * Z1^2 and Y1 * Z2^3 == Y2 * Z1^3
-
-    bn382_Fq Z1Z1 = (this->Z).squared();
-    bn382_Fq Z2Z2 = (other.Z).squared();
-
-    bn382_Fq U1 = this->X * Z2Z2;
-    bn382_Fq U2 = other.X * Z1Z1;
-
-    bn382_Fq Z1_cubed = (this->Z) * Z1Z1;
-    bn382_Fq Z2_cubed = (other.Z) * Z2Z2;
-
-    bn382_Fq S1 = (this->Y) * Z2_cubed;      // S1 = Y1 * Z2 * Z2Z2
-    bn382_Fq S2 = (other.Y) * Z1_cubed;      // S2 = Y2 * Z1 * Z1Z1
-
-    if (U1 == U2 && S1 == S2)
+    // handle double case, and then all the rest
+    if (this->operator==(other))
     {
-        // dbl case; nothing of above can be reused
         return this->dbl();
     }
-
-    // rest of add case
-    bn382_Fq H = U2 - U1;                            // H = U2-U1
-    bn382_Fq S2_minus_S1 = S2-S1;
-    bn382_Fq I = (H+H).squared();                    // I = (2 * H)^2
-    bn382_Fq J = H * I;                              // J = H * I
-    bn382_Fq r = S2_minus_S1 + S2_minus_S1;          // r = 2 * (S2-S1)
-    bn382_Fq V = U1 * I;                             // V = U1 * I
-    bn382_Fq X3 = r.squared() - J - (V+V);           // X3 = r^2 - J - 2 * V
-    bn382_Fq S1_J = S1 * J;
-    bn382_Fq Y3 = r * (V-X3) - (S1_J+S1_J);          // Y3 = r * (V-X3)-2 S1 J
-    bn382_Fq Z3 = ((this->Z+other.Z).squared()-Z1Z1-Z2Z2) * H; // Z3 = ((Z1+Z2)^2-Z1Z1-Z2Z2) * H
-
-    return bn382_G1(X3, Y3, Z3);
+    else
+    {
+        return this->add(other);
+    }
 }
 
 bn382_G1 bn382_G1::operator-() const
 {
-    return bn382_G1(this->X, -(this->Y), this->Z);
+    bn382_G1 result(*this);
+    bn::Fp::neg(result.coord[1], result.coord[1]);
+    return result;
 }
-
 
 bn382_G1 bn382_G1::operator-(const bn382_G1 &other) const
 {
@@ -207,59 +219,17 @@ bn382_G1 bn382_G1::operator-(const bn382_G1 &other) const
 
 bn382_G1 bn382_G1::add(const bn382_G1 &other) const
 {
-    // handle special cases having to do with O
-    if (this->is_zero())
-    {
-        return other;
-    }
-
-    if (other.is_zero())
-    {
-        return *this;
-    }
-
-    // no need to handle points of order 2,4
-    // (they cannot exist in a prime-order subgroup)
-
-    // handle double case
-    if (this->operator==(other))
-    {
-        return this->dbl();
-    }
-
 #ifdef PROFILE_OP_COUNTS
     this->add_cnt++;
 #endif
-    // NOTE: does not handle O and pts of order 2,4
-    // http://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-add-2007-bl
 
-    bn382_Fq Z1Z1 = (this->Z).squared();             // Z1Z1 = Z1^2
-    bn382_Fq Z2Z2 = (other.Z).squared();             // Z2Z2 = Z2^2
-    bn382_Fq U1 = (this->X) * Z2Z2;                  // U1 = X1 * Z2Z2
-    bn382_Fq U2 = (other.X) * Z1Z1;                  // U2 = X2 * Z1Z1
-    bn382_Fq S1 = (this->Y) * (other.Z) * Z2Z2;      // S1 = Y1 * Z2 * Z2Z2
-    bn382_Fq S2 = (other.Y) * (this->Z) * Z1Z1;      // S2 = Y2 * Z1 * Z1Z1
-    bn382_Fq H = U2 - U1;                            // H = U2-U1
-    bn382_Fq S2_minus_S1 = S2-S1;
-    bn382_Fq I = (H+H).squared();                    // I = (2 * H)^2
-    bn382_Fq J = H * I;                              // J = H * I
-    bn382_Fq r = S2_minus_S1 + S2_minus_S1;          // r = 2 * (S2-S1)
-    bn382_Fq V = U1 * I;                             // V = U1 * I
-    bn382_Fq X3 = r.squared() - J - (V+V);           // X3 = r^2 - J - 2 * V
-    bn382_Fq S1_J = S1 * J;
-    bn382_Fq Y3 = r * (V-X3) - (S1_J+S1_J);          // Y3 = r * (V-X3)-2 S1 J
-    bn382_Fq Z3 = ((this->Z+other.Z).squared()-Z1Z1-Z2Z2) * H; // Z3 = ((Z1+Z2)^2-Z1Z1-Z2Z2) * H
-
-    return bn382_G1(X3, Y3, Z3);
+    bn382_G1 result;
+    bn::ecop::ECAdd(result.coord, this->coord, other.coord);
+    return result;
 }
 
 bn382_G1 bn382_G1::mixed_add(const bn382_G1 &other) const
 {
-#ifdef DEBUG
-    assert(other.is_special());
-#endif
-
-    // handle special cases having to do with O
     if (this->is_zero())
     {
         return other;
@@ -272,6 +242,10 @@ bn382_G1 bn382_G1::mixed_add(const bn382_G1 &other) const
 
     // no need to handle points of order 2,4
     // (they cannot exist in a prime-order subgroup)
+
+#ifdef DEBUG
+    assert(other.is_special());
+#endif
 
     // check for doubling case
 
@@ -284,15 +258,17 @@ bn382_G1 bn382_G1::mixed_add(const bn382_G1 &other) const
 
     // we know that Z2 = 1
 
-    const bn382_Fq Z1Z1 = (this->Z).squared();
+    bn::Fp Z1Z1;
+    bn::Fp::square(Z1Z1, this->coord[2]);
+    const bn::Fp &U1 = this->coord[0];
+    bn::Fp U2;
+    bn::Fp::mul(U2, other.coord[0], Z1Z1);
+    bn::Fp Z1_cubed;
+    bn::Fp::mul(Z1_cubed, this->coord[2], Z1Z1);
 
-    const bn382_Fq &U1 = this->X;
-    const bn382_Fq U2 = other.X * Z1Z1;
-
-    const bn382_Fq Z1_cubed = (this->Z) * Z1Z1;
-
-    const bn382_Fq &S1 = (this->Y);                // S1 = Y1 * Z2 * Z2Z2
-    const bn382_Fq S2 = (other.Y) * Z1_cubed;      // S2 = Y2 * Z1 * Z1Z1
+    const bn::Fp &S1 = this->coord[1];
+    bn::Fp S2;
+    bn::Fp::mul(S2, other.coord[1], Z1_cubed); // S2 = Y2*Z1*Z1Z1
 
     if (U1 == U2 && S1 == S2)
     {
@@ -304,22 +280,39 @@ bn382_G1 bn382_G1::mixed_add(const bn382_G1 &other) const
     this->add_cnt++;
 #endif
 
-    // NOTE: does not handle O and pts of order 2,4
-    // http://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-madd-2007-bl
-    bn382_Fq H = U2-(this->X);                         // H = U2-X1
-    bn382_Fq HH = H.squared() ;                        // HH = H&2
-    bn382_Fq I = HH+HH;                                // I = 4*HH
-    I = I + I;
-    bn382_Fq J = H*I;                                  // J = H*I
-    bn382_Fq r = S2-(this->Y);                         // r = 2*(S2-Y1)
-    r = r + r;
-    bn382_Fq V = (this->X) * I ;                       // V = X1*I
-    bn382_Fq X3 = r.squared()-J-V-V;                   // X3 = r^2-J-2*V
-    bn382_Fq Y3 = (this->Y)*J;                         // Y3 = r*(V-X3)-2*Y1*J
-    Y3 = r*(V-X3) - Y3 - Y3;
-    bn382_Fq Z3 = ((this->Z)+H).squared() - Z1Z1 - HH; // Z3 = (Z1+H)^2-Z1Z1-HH
-
-    return bn382_G1(X3, Y3, Z3);
+    bn382_G1 result;
+    bn::Fp H, HH, I, J, r, V, tmp;
+    // H = U2-X1
+    bn::Fp::sub(H, U2, this->coord[0]);
+    // HH = H^2
+    bn::Fp::square(HH, H);
+    // I = 4*HH
+    bn::Fp::add(tmp, HH, HH);
+    bn::Fp::add(I, tmp, tmp);
+    // J = H*I
+    bn::Fp::mul(J, H, I);
+    // r = 2*(S2-Y1)
+    bn::Fp::sub(tmp, S2, this->coord[1]);
+    bn::Fp::add(r, tmp, tmp);
+    // V = X1*I
+    bn::Fp::mul(V, this->coord[0], I);
+    // X3 = r^2-J-2*V
+    bn::Fp::square(result.coord[0], r);
+    bn::Fp::sub(result.coord[0], result.coord[0], J);
+    bn::Fp::sub(result.coord[0], result.coord[0], V);
+    bn::Fp::sub(result.coord[0], result.coord[0], V);
+    // Y3 = r*(V-X3)-2*Y1*J
+    bn::Fp::sub(tmp, V, result.coord[0]);
+    bn::Fp::mul(result.coord[1], r, tmp);
+    bn::Fp::mul(tmp, this->coord[1], J);
+    bn::Fp::sub(result.coord[1], result.coord[1], tmp);
+    bn::Fp::sub(result.coord[1], result.coord[1], tmp);
+    // Z3 = (Z1+H)^2-Z1Z1-HH
+    bn::Fp::add(tmp, this->coord[2], H);
+    bn::Fp::square(result.coord[2], tmp);
+    bn::Fp::sub(result.coord[2], result.coord[2], Z1Z1);
+    bn::Fp::sub(result.coord[2], result.coord[2], HH);
+    return result;
 }
 
 bn382_G1 bn382_G1::dbl() const
@@ -327,34 +320,54 @@ bn382_G1 bn382_G1::dbl() const
 #ifdef PROFILE_OP_COUNTS
     this->dbl_cnt++;
 #endif
-    // handle point at infinity
-    if (this->is_zero())
-    {
-        return (*this);
-    }
 
-    // no need to handle points of order 2,4
-    // (they cannot exist in a prime-order subgroup)
+    bn382_G1 result;
+    bn::ecop::ECDouble(result.coord, this->coord);
+    return result;
+}
 
-    // NOTE: does not handle O and pts of order 2,4
-    // http://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#doubling-dbl-2009-l
+bn382_G1 bn382_G1::zero()
+{
+    return G1_zero;
+}
 
-    bn382_Fq A = (this->X).squared();         // A = X1^2
-    bn382_Fq B = (this->Y).squared();        // B = Y1^2
-    bn382_Fq C = B.squared();                // C = B^2
-    bn382_Fq D = (this->X + B).squared() - A - C;
-    D = D+D;                        // D = 2 * ((X1 + B)^2 - A - C)
-    bn382_Fq E = A + A + A;                  // E = 3 * A
-    bn382_Fq F = E.squared();                // F = E^2
-    bn382_Fq X3 = F - (D+D);                 // X3 = F - 2 D
-    bn382_Fq eightC = C+C;
-    eightC = eightC + eightC;
-    eightC = eightC + eightC;
-    bn382_Fq Y3 = E * (D - X3) - eightC;     // Y3 = E * (D - X3) - 8 * C
-    bn382_Fq Y1Z1 = (this->Y)*(this->Z);
-    bn382_Fq Z3 = Y1Z1 + Y1Z1;               // Z3 = 2 * Y1 * Z1
+bn382_G1 bn382_G1::one()
+{
+    return G1_one;
+}
 
-    return bn382_G1(X3, Y3, Z3);
+bn382_G1 bn382_G1::random_element()
+{
+    return bn382_Fr::random_element().as_bigint() * G1_one;
+}
+
+std::ostream& operator<<(std::ostream &out, const bn382_G1 &g)
+{
+    bn382_G1 gcopy(g);
+    gcopy.to_affine_coordinates();
+
+    out << (gcopy.is_zero() ? '1' : '0') << OUTPUT_SEPARATOR;
+
+#ifdef NO_PT_COMPRESSION
+    /* no point compression case */
+#ifndef BINARY_OUTPUT
+    out << gcopy.coord[0] << OUTPUT_SEPARATOR << gcopy.coord[1];
+#else
+    out.write((char*) &gcopy.coord[0], sizeof(gcopy.coord[0]));
+    out.write((char*) &gcopy.coord[1], sizeof(gcopy.coord[1]));
+#endif
+
+#else
+    /* point compression case */
+#ifndef BINARY_OUTPUT
+    out << gcopy.coord[0];
+#else
+    out.write((char*) &gcopy.coord[0], sizeof(gcopy.coord[0]));
+#endif
+    out << OUTPUT_SEPARATOR << (((unsigned char*)&gcopy.coord[1])[0] & 1 ? '1' : '0');
+#endif
+
+    return out;
 }
 
 bool bn382_G1::is_well_formed() const
@@ -374,87 +387,72 @@ bool bn382_G1::is_well_formed() const
           y^2 / z^6 = x^3 / z^6 + b
           y^2 = x^3 + b z^6
         */
-        bn382_Fq X2 = this->X.squared();
-        bn382_Fq Y2 = this->Y.squared();
-        bn382_Fq Z2 = this->Z.squared();
+        bn::Fp X2, Y2, Z2;
+        bn::Fp::square(X2, this->coord[0]);
+        bn::Fp::square(Y2, this->coord[1]);
+        bn::Fp::square(Z2, this->coord[2]);
 
-        bn382_Fq X3 = this->X * X2;
-        bn382_Fq Z3 = this->Z * Z2;
-        bn382_Fq Z6 = Z3.squared();
+        bn::Fp X3, Z3, Z6;
+        bn::Fp::mul(X3, X2, this->coord[0]);
+        bn::Fp::mul(Z3, Z2, this->coord[2]);
+        bn::Fp::square(Z6, Z3);
 
         return (Y2 == X3 + bn382_coeff_b * Z6);
     }
 }
 
-bn382_G1 bn382_G1::zero()
-{
-    return G1_zero;
-}
-
-bn382_G1 bn382_G1::one()
-{
-    return G1_one;
-}
-
-bn382_G1 bn382_G1::random_element()
-{
-    return (scalar_field::random_element().as_bigint()) * G1_one;
-}
-
-std::ostream& operator<<(std::ostream &out, const bn382_G1 &g)
-{
-    bn382_G1 copy(g);
-    copy.to_affine_coordinates();
-
-    out << (copy.is_zero() ? 1 : 0) << OUTPUT_SEPARATOR;
-#ifdef NO_PT_COMPRESSION
-    out << copy.X << OUTPUT_SEPARATOR << copy.Y;
-#else
-    /* storing LSB of Y */
-    out << copy.X << OUTPUT_SEPARATOR << (copy.Y.as_bigint().data[0] & 1);
-#endif
-
-    return out;
-}
-
 std::istream& operator>>(std::istream &in, bn382_G1 &g)
 {
     char is_zero;
-    bn382_Fq tX, tY;
-
-#ifdef NO_PT_COMPRESSION
-    in >> is_zero >> tX >> tY;
-    is_zero -= '0';
-#else
     in.read((char*)&is_zero, 1); // this reads is_zero;
     is_zero -= '0';
     consume_OUTPUT_SEPARATOR(in);
 
-    unsigned char Y_lsb;
-    in >> tX;
+#ifdef NO_PT_COMPRESSION
+    /* no point compression case */
+#ifndef BINARY_OUTPUT
+    in >> g.coord[0];
     consume_OUTPUT_SEPARATOR(in);
+    in >> g.coord[1];
+#else
+    in.read((char*) &g.coord[0], sizeof(g.coord[0]));
+    in.read((char*) &g.coord[1], sizeof(g.coord[1]));
+#endif
+
+#else
+    /* point compression case */
+    bn::Fp tX;
+#ifndef BINARY_OUTPUT
+    in >> tX;
+#else
+    in.read((char*)&tX, sizeof(tX));
+#endif
+    consume_OUTPUT_SEPARATOR(in);
+    unsigned char Y_lsb;
     in.read((char*)&Y_lsb, 1);
     Y_lsb -= '0';
 
     // y = +/- sqrt(x^3 + b)
     if (!is_zero)
     {
-        bn382_Fq tX2 = tX.squared();
-        bn382_Fq tY2 = tX2*tX + bn382_coeff_b;
-        tY = tY2.sqrt();
+        g.coord[0] = tX;
+        bn::Fp tX2, tY2;
+        bn::Fp::square(tX2, tX);
+        bn::Fp::mul(tY2, tX2, tX);
+        bn::Fp::add(tY2, tY2, bn382_coeff_b);
 
-        if ((tY.as_bigint().data[0] & 1) != Y_lsb)
+        g.coord[1] = bn382_G1::sqrt(tY2);
+        if ((((unsigned char*)&g.coord[1])[0] & 1) != Y_lsb)
         {
-            tY = -tY;
+            bn::Fp::neg(g.coord[1], g.coord[1]);
         }
     }
 #endif
-    // using Jacobian coordinates
+
+    /* finalize */
     if (!is_zero)
     {
-        g.X = tX;
-        g.Y = tY;
-        g.Z = bn382_Fq::one();
+        g.coord[2] = bn::Fp(1);
     }
     else
     {
@@ -471,7 +469,6 @@ std::ostream& operator<<(std::ostream& out, const std::vector<bn382_G1> &v)
     {
         out << t << OUTPUT_NEWLINE;
     }
-
     return out;
 }
 
@@ -482,7 +479,6 @@ std::istream& operator>>(std::istream& in, std::vector<bn382_G1> &v)
     size_t s;
     in >> s;
     consume_newline(in);
-
     v.reserve(s);
 
     for (size_t i = 0; i < s; ++i)
@@ -492,31 +488,31 @@ std::istream& operator>>(std::istream& in, std::vector<bn382_G1> &v)
         consume_OUTPUT_NEWLINE(in);
         v.emplace_back(g);
     }
-
     return in;
 }
 
 void bn382_G1::batch_to_special_all_non_zeros(std::vector<bn382_G1> &vec)
 {
-    std::vector<bn382_Fq> Z_vec;
+    std::vector<bn::Fp> Z_vec;
     Z_vec.reserve(vec.size());
 
     for (auto &el: vec)
     {
-        Z_vec.emplace_back(el.Z);
+        Z_vec.emplace_back(el.coord[2]);
     }
-    batch_invert<bn382_Fq>(Z_vec);
+    bn_batch_invert<bn::Fp>(Z_vec);
 
-    const bn382_Fq one = bn382_Fq::one();
+    const bn::Fp one = 1;
 
     for (size_t i = 0; i < vec.size(); ++i)
     {
-        bn382_Fq Z2 = Z_vec[i].squared();
-        bn382_Fq Z3 = Z_vec[i] * Z2;
+        bn::Fp Z2, Z3;
+        bn::Fp::square(Z2, Z_vec[i]);
+        bn::Fp::mul(Z3, Z2, Z_vec[i]);
 
-        vec[i].X = vec[i].X * Z2;
-        vec[i].Y = vec[i].Y * Z3;
-        vec[i].Z = one;
+        bn::Fp::mul(vec[i].coord[0], vec[i].coord[0], Z2);
+        bn::Fp::mul(vec[i].coord[1], vec[i].coord[1], Z3);
+        vec[i].coord[2] = one;
     }
 }
 

@@ -9,6 +9,8 @@
 #define BN382_G1_HPP_
 #include <vector>
 
+#include "depends/ate-pairing/include/bn.h"
+
 #include <libff/algebra/curves/bn382/bn382_init.hpp>
 #include <libff/algebra/curves/curve_utils.hpp>
 
@@ -19,6 +21,8 @@ std::ostream& operator<<(std::ostream &, const bn382_G1&);
 std::istream& operator>>(std::istream &, bn382_G1&);
 
 class bn382_G1 {
+private:
+    static bn::Fp sqrt(const bn::Fp &el);
 public:
 #ifdef PROFILE_OP_COUNTS
     static long long add_cnt;
@@ -29,14 +33,10 @@ public:
     static bn382_G1 G1_zero;
     static bn382_G1 G1_one;
 
+    bn::Fp coord[3];
+    bn382_G1();
     typedef bn382_Fq base_field;
     typedef bn382_Fr scalar_field;
-
-    bn382_Fq X, Y, Z;
-
-    // using Jacobian coordinates
-    bn382_G1();
-    bn382_G1(const bn382_Fq& X, const bn382_Fq& Y, const bn382_Fq& Z) : X(X), Y(Y), Z(Z) {};
 
     void print() const;
     void print_coordinates() const;
@@ -64,7 +64,7 @@ public:
     static bn382_G1 one();
     static bn382_G1 random_element();
 
-    static size_t size_in_bits() { return base_field::size_in_bits() + 1; }
+    static size_t size_in_bits() { return bn382_Fq::size_in_bits() + 1; }
     static bigint<base_field::num_limbs> base_field_char() { return base_field::field_char(); }
     static bigint<scalar_field::num_limbs> order() { return scalar_field::field_char(); }
 
@@ -88,6 +88,7 @@ bn382_G1 operator*(const Fp_model<m,modulus_p> &lhs, const bn382_G1 &rhs)
 
 std::ostream& operator<<(std::ostream& out, const std::vector<bn382_G1> &v);
 std::istream& operator>>(std::istream& in, std::vector<bn382_G1> &v);
+
 
 } // libff
 #endif // BN382_G1_HPP_

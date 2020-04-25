@@ -129,9 +129,8 @@ print_name("multiplicative_generator", GENERATOR)
 rou = limbs_to_bigint(ROOT_OF_UNITY)
 print_name("root_of_unity", rou)
 # nqr
-nqr = 7
-print_name("nqr", nqr)
 # nqr^t
-nqr_to_t = pow(nqr, t, BN382_p)
-print_name("nqr^t", nqr_to_t)
-""
+for nqr in range(2000):
+    nqr_to_t = pow(nqr, t, BN382_p)
+    if nqr_to_t == rou:
+        print_name("nqr^t" + str(nqr), nqr_to_t)

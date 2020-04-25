@@ -1,14 +1,18 @@
 /** @file
- *****************************************************************************
+ ********************************************************************************
+ Implements functions for computing Ate pairings over the bn382 curves, split into a
+ offline and online stages.
+ ********************************************************************************
  * @author     This file is part of libff, developed by SCIPR Lab
  *             and contributors (see AUTHORS).
  * @copyright  MIT license (see LICENSE file)
- *****************************************************************************/
+ *******************************************************************************/
 
-#include <cassert>
+#include <sstream>
 
 #include <libff/algebra/curves/bn382/bn382_g1.hpp>
 #include <libff/algebra/curves/bn382/bn382_g2.hpp>
+#include <libff/algebra/curves/bn382/bn382_gt.hpp>
 #include <libff/algebra/curves/bn382/bn382_init.hpp>
 #include <libff/algebra/curves/bn382/bn382_pairing.hpp>
 #include <libff/common/profiling.hpp>
@@ -17,286 +21,152 @@ namespace libff {
 
 bool bn382_ate_G1_precomp::operator==(const bn382_ate_G1_precomp &other) const
 {
-    return (this->PX == other.PX &&
-            this->PY == other.PY);
+    return (this->P[0] == other.P[0] &&
+            this->P[1] == other.P[1] &&
+            this->P[2] == other.P[2]);
 }
 
 std::ostream& operator<<(std::ostream &out, const bn382_ate_G1_precomp &prec_P)
 {
-    out << prec_P.PX << OUTPUT_SEPARATOR << prec_P.PY;
-
+    for (size_t i = 0; i < 3; ++i)
+    {
+#ifndef BINARY_OUTPUT
+        out << prec_P.P[i] << "\n";
+#else
+        out.write((char*) &prec_P.P[i], sizeof(prec_P.P[i]));
+#endif
+    }
     return out;
 }
 
 std::istream& operator>>(std::istream &in, bn382_ate_G1_precomp &prec_P)
 {
-    in >> prec_P.PX;
-    consume_OUTPUT_SEPARATOR(in);
-    in >> prec_P.PY;
-
-    return in;
-}
-
-bool  bn382_ate_ell_coeffs::operator==(const bn382_ate_ell_coeffs &other) const
-{
-    return (this->ell_0 == other.ell_0 &&
-            this->ell_VW == other.ell_VW &&
-            this->ell_VV == other.ell_VV);
-}
-
-std::ostream& operator<<(std::ostream &out, const bn382_ate_ell_coeffs &c)
-{
-    out << c.ell_0 << OUTPUT_SEPARATOR << c.ell_VW << OUTPUT_SEPARATOR << c.ell_VV;
-    return out;
-}
-
-std::istream& operator>>(std::istream &in, bn382_ate_ell_coeffs &c)
-{
-    in >> c.ell_0;
-    consume_OUTPUT_SEPARATOR(in);
-    in >> c.ell_VW;
-    consume_OUTPUT_SEPARATOR(in);
-    in >> c.ell_VV;
-
+    for (size_t i = 0; i < 3; ++i)
+    {
+#ifndef BINARY_OUTPUT
+        in >> prec_P.P[i];
+        consume_newline(in);
+#else
+        in.read((char*) &prec_P.P[i], sizeof(prec_P.P[i]));
+#endif
+    }
     return in;
 }
 
 bool bn382_ate_G2_precomp::operator==(const bn382_ate_G2_precomp &other) const
 {
-    return (this->QX == other.QX &&
-            this->QY == other.QY &&
-            this->coeffs == other.coeffs);
+    if (!(this->Q[0] == other.Q[0] &&
+          this->Q[1] == other.Q[1] &&
+          this->Q[2] == other.Q[2] &&
+          this->coeffs.size() == other.coeffs.size()))
+    {
+        return false;
+    }
+
+    /* work around for upstream serialization bug */
+    for (size_t i = 0; i < this->coeffs.size(); ++i)
+    {
+        std::stringstream this_ss, other_ss;
+        this_ss << this->coeffs[i];
+        other_ss << other.coeffs[i];
+        if (this_ss.str() != other_ss.str())
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
-std::ostream& operator<<(std::ostream& out, const bn382_ate_G2_precomp &prec_Q)
+std::ostream& operator<<(std::ostream &out, const bn382_ate_G2_precomp &prec_Q)
 {
-    out << prec_Q.QX << OUTPUT_SEPARATOR << prec_Q.QY << "\n";
-    out << prec_Q.coeffs.size() << "\n";
-    for (const bn382_ate_ell_coeffs &c : prec_Q.coeffs)
+    for (size_t i = 0; i < 3; ++i)
     {
-        out << c << OUTPUT_NEWLINE;
+#ifndef BINARY_OUTPUT
+        out << prec_Q.Q[i].a_ << "\n";
+        out << prec_Q.Q[i].b_ << "\n";
+#else
+        out.write((char*) &prec_Q.Q[i].a_, sizeof(prec_Q.Q[i].a_));
+        out.write((char*) &prec_Q.Q[i].b_, sizeof(prec_Q.Q[i].b_));
+#endif
     }
+
+    out << prec_Q.coeffs.size() << "\n";
+
+    for (size_t i = 0; i < prec_Q.coeffs.size(); ++i)
+    {
+#ifndef BINARY_OUTPUT
+        out << prec_Q.coeffs[i].a_.a_ << "\n";
+        out << prec_Q.coeffs[i].a_.b_ << "\n";
+        out << prec_Q.coeffs[i].b_.a_ << "\n";
+        out << prec_Q.coeffs[i].b_.b_ << "\n";
+        out << prec_Q.coeffs[i].c_.a_ << "\n";
+        out << prec_Q.coeffs[i].c_.b_ << "\n";
+#else
+        out.write((char*) &prec_Q.coeffs[i].a_.a_, sizeof(prec_Q.coeffs[i].a_.a_));
+        out.write((char*) &prec_Q.coeffs[i].a_.b_, sizeof(prec_Q.coeffs[i].a_.b_));
+        out.write((char*) &prec_Q.coeffs[i].b_.a_, sizeof(prec_Q.coeffs[i].b_.a_));
+        out.write((char*) &prec_Q.coeffs[i].b_.b_, sizeof(prec_Q.coeffs[i].b_.b_));
+        out.write((char*) &prec_Q.coeffs[i].c_.a_, sizeof(prec_Q.coeffs[i].c_.a_));
+        out.write((char*) &prec_Q.coeffs[i].c_.b_, sizeof(prec_Q.coeffs[i].c_.b_));
+#endif
+    }
+
     return out;
 }
 
-std::istream& operator>>(std::istream& in, bn382_ate_G2_precomp &prec_Q)
+std::istream& operator>>(std::istream &in, bn382_ate_G2_precomp &prec_Q)
 {
-    in >> prec_Q.QX;
-    consume_OUTPUT_SEPARATOR(in);
-    in >> prec_Q.QY;
-    consume_newline(in);
-
-    prec_Q.coeffs.clear();
-    size_t s;
-    in >> s;
-
-    consume_newline(in);
-
-    prec_Q.coeffs.reserve(s);
-
-    for (size_t i = 0; i < s; ++i)
+    for (size_t i = 0; i < 3; ++i)
     {
-        bn382_ate_ell_coeffs c;
-        in >> c;
-        consume_OUTPUT_NEWLINE(in);
-        prec_Q.coeffs.emplace_back(c);
+#ifndef BINARY_OUTPUT
+        in >> prec_Q.Q[i].a_;
+        consume_newline(in);
+        in >> prec_Q.Q[i].b_;
+        consume_newline(in);
+#else
+        in.read((char*) &prec_Q.Q[i].a_, sizeof(prec_Q.Q[i].a_));
+        in.read((char*) &prec_Q.Q[i].b_, sizeof(prec_Q.Q[i].b_));
+#endif
     }
 
+    size_t count;
+    in >> count;
+    consume_newline(in);
+    prec_Q.coeffs.resize(count);
+    for (size_t i = 0; i < count; ++i)
+    {
+#ifndef BINARY_OUTPUT
+        in >> prec_Q.coeffs[i].a_.a_;
+        consume_newline(in);
+        in >> prec_Q.coeffs[i].a_.b_;
+        consume_newline(in);
+        in >> prec_Q.coeffs[i].b_.a_;
+        consume_newline(in);
+        in >> prec_Q.coeffs[i].b_.b_;
+        consume_newline(in);
+        in >> prec_Q.coeffs[i].c_.a_;
+        consume_newline(in);
+        in >> prec_Q.coeffs[i].c_.b_;
+        consume_newline(in);
+#else
+        in.read((char*) &prec_Q.coeffs[i].a_.a_, sizeof(prec_Q.coeffs[i].a_.a_));
+        in.read((char*) &prec_Q.coeffs[i].a_.b_, sizeof(prec_Q.coeffs[i].a_.b_));
+        in.read((char*) &prec_Q.coeffs[i].b_.a_, sizeof(prec_Q.coeffs[i].b_.a_));
+        in.read((char*) &prec_Q.coeffs[i].b_.b_, sizeof(prec_Q.coeffs[i].b_.b_));
+        in.read((char*) &prec_Q.coeffs[i].c_.a_, sizeof(prec_Q.coeffs[i].c_.a_));
+        in.read((char*) &prec_Q.coeffs[i].c_.b_, sizeof(prec_Q.coeffs[i].c_.b_));
+#endif
+    }
     return in;
-}
-
-/* final exponentiations */
-
-bn382_Fq12 bn382_final_exponentiation_first_chunk(const bn382_Fq12 &elt)
-{
-    enter_block("Call to bn382_final_exponentiation_first_chunk");
-
-    /*
-      Computes result = elt^((q^6-1)*(q^2+1)).
-      Follows, e.g., Beuchat et al page 9, by computing result as follows:
-         elt^((q^6-1)*(q^2+1)) = (conj(elt) * elt^(-1))^(q^2+1)
-      More precisely:
-      A = conj(elt)
-      B = elt.inverse()
-      C = A * B
-      D = C.Frobenius_map(2)
-      result = D * C
-    */
-
-    const bn382_Fq12 A = bn382_Fq12(elt.c0,-elt.c1);
-    const bn382_Fq12 B = elt.inverse();
-    const bn382_Fq12 C = A * B;
-    const bn382_Fq12 D = C.Frobenius_map(2);
-    const bn382_Fq12 result = D * C;
-
-    leave_block("Call to bn382_final_exponentiation_first_chunk");
-
-    return result;
-}
-
-bn382_Fq12 bn382_exp_by_neg_z(const bn382_Fq12 &elt)
-{
-    enter_block("Call to bn382_exp_by_neg_z");
-
-    bn382_Fq12 result = elt.cyclotomic_exp(bn382_final_exponent_z);
-    if (!bn382_final_exponent_is_z_neg)
-    {
-        result = result.unitary_inverse();
-    }
-
-    leave_block("Call to bn382_exp_by_neg_z");
-
-    return result;
-}
-
-bn382_Fq12 bn382_final_exponentiation_last_chunk(const bn382_Fq12 &elt)
-{
-    enter_block("Call to bn382_final_exponentiation_last_chunk");
-
-    /*
-      Follows Laura Fuentes-Castaneda et al. "Faster hashing to G2"
-      by computing:
-
-      result = elt^(q^3 * (12*z^3 + 6z^2 + 4z - 1) +
-                    q^2 * (12*z^3 + 6z^2 + 6z) +
-                    q   * (12*z^3 + 6z^2 + 4z) +
-                    1   * (12*z^3 + 12z^2 + 6z + 1))
-      which equals
-
-      result = elt^( 2z * ( 6z^2 + 3z + 1 ) * (q^4 - q^2 + 1)/r ).
-
-      Using the following addition chain:
-
-      A = exp_by_neg_z(elt)  // = elt^(-z)
-      B = A^2                // = elt^(-2*z)
-      C = B^2                // = elt^(-4*z)
-      D = C * B              // = elt^(-6*z)
-      E = exp_by_neg_z(D)    // = elt^(6*z^2)
-      F = E^2                // = elt^(12*z^2)
-      G = epx_by_neg_z(F)    // = elt^(-12*z^3)
-      H = conj(D)            // = elt^(6*z)
-      I = conj(G)            // = elt^(12*z^3)
-      J = I * E              // = elt^(12*z^3 + 6*z^2)
-      K = J * H              // = elt^(12*z^3 + 6*z^2 + 6*z)
-      L = K * B              // = elt^(12*z^3 + 6*z^2 + 4*z)
-      M = K * E              // = elt^(12*z^3 + 12*z^2 + 6*z)
-      N = M * elt            // = elt^(12*z^3 + 12*z^2 + 6*z + 1)
-      O = L.Frobenius_map(1) // = elt^(q*(12*z^3 + 6*z^2 + 4*z))
-      P = O * N              // = elt^(q*(12*z^3 + 6*z^2 + 4*z) * (12*z^3 + 12*z^2 + 6*z + 1))
-      Q = K.Frobenius_map(2) // = elt^(q^2 * (12*z^3 + 6*z^2 + 6*z))
-      R = Q * P              // = elt^(q^2 * (12*z^3 + 6*z^2 + 6*z) + q*(12*z^3 + 6*z^2 + 4*z) * (12*z^3 + 12*z^2 + 6*z + 1))
-      S = conj(elt)          // = elt^(-1)
-      T = S * L              // = elt^(12*z^3 + 6*z^2 + 4*z - 1)
-      U = T.Frobenius_map(3) // = elt^(q^3(12*z^3 + 6*z^2 + 4*z - 1))
-      V = U * R              // = elt^(q^3(12*z^3 + 6*z^2 + 4*z - 1) + q^2 * (12*z^3 + 6*z^2 + 6*z) + q*(12*z^3 + 6*z^2 + 4*z) * (12*z^3 + 12*z^2 + 6*z + 1))
-      result = V
-
-    */
-
-    const bn382_Fq12 A = bn382_exp_by_neg_z(elt);
-    const bn382_Fq12 B = A.cyclotomic_squared();
-    const bn382_Fq12 C = B.cyclotomic_squared();
-    const bn382_Fq12 D = C * B;
-    const bn382_Fq12 E = bn382_exp_by_neg_z(D);
-    const bn382_Fq12 F = E.cyclotomic_squared();
-    const bn382_Fq12 G = bn382_exp_by_neg_z(F);
-    const bn382_Fq12 H = D.unitary_inverse();
-    const bn382_Fq12 I = G.unitary_inverse();
-    const bn382_Fq12 J = I * E;
-    const bn382_Fq12 K = J * H;
-    const bn382_Fq12 L = K * B;
-    const bn382_Fq12 M = K * E;
-    const bn382_Fq12 N = M * elt;
-    const bn382_Fq12 O = L.Frobenius_map(1);
-    const bn382_Fq12 P = O * N;
-    const bn382_Fq12 Q = K.Frobenius_map(2);
-    const bn382_Fq12 R = Q * P;
-    const bn382_Fq12 S = elt.unitary_inverse();
-    const bn382_Fq12 T = S * L;
-    const bn382_Fq12 U = T.Frobenius_map(3);
-    const bn382_Fq12 V = U * R;
-
-    const bn382_Fq12 result = V;
-
-    leave_block("Call to bn382_final_exponentiation_last_chunk");
-
-    return result;
-}
-
-bn382_GT bn382_final_exponentiation(const bn382_Fq12 &elt)
-{
-    enter_block("Call to bn382_final_exponentiation");
-    /* OLD naive version:
-        bn382_GT result = elt^bn382_final_exponent;
-    */
-    bn382_Fq12 A = bn382_final_exponentiation_first_chunk(elt);
-    bn382_GT result = bn382_final_exponentiation_last_chunk(A);
-
-    leave_block("Call to bn382_final_exponentiation");
-    return result;
-}
-
-/* ate pairing */
-
-void doubling_step_for_flipped_miller_loop(const bn382_Fq two_inv,
-                                           bn382_G2 &current,
-                                           bn382_ate_ell_coeffs &c)
-{
-    const bn382_Fq2 X = current.X, Y = current.Y, Z = current.Z;
-
-    const bn382_Fq2 A = two_inv * (X * Y);                     // A = X1 * Y1 / 2
-    const bn382_Fq2 B = Y.squared();                           // B = Y1^2
-    const bn382_Fq2 C = Z.squared();                           // C = Z1^2
-    const bn382_Fq2 D = C+C+C;                                 // D = 3 * C
-    const bn382_Fq2 E = bn382_twist_coeff_b * D;             // E = twist_b * D
-    const bn382_Fq2 F = E+E+E;                                 // F = 3 * E
-    const bn382_Fq2 G = two_inv * (B+F);                       // G = (B+F)/2
-    const bn382_Fq2 H = (Y+Z).squared() - (B+C);               // H = (Y1+Z1)^2-(B+C)
-    const bn382_Fq2 I = E-B;                                   // I = E-B
-    const bn382_Fq2 J = X.squared();                           // J = X1^2
-    const bn382_Fq2 E_squared = E.squared();                   // E_squared = E^2
-
-    current.X = A * (B-F);                                       // X3 = A * (B-F)
-    current.Y = G.squared() - (E_squared+E_squared+E_squared);   // Y3 = G^2 - 3*E^2
-    current.Z = B * H;                                           // Z3 = B * H
-    c.ell_0 = bn382_twist * I;                                 // ell_0 = xi * I
-    c.ell_VW = -H;                                               // ell_VW = - H (later: * yP)
-    c.ell_VV = J+J+J;                                            // ell_VV = 3*J (later: * xP)
-}
-
-void mixed_addition_step_for_flipped_miller_loop(const bn382_G2 base,
-                                                 bn382_G2 &current,
-                                                 bn382_ate_ell_coeffs &c)
-{
-    const bn382_Fq2 X1 = current.X, Y1 = current.Y, Z1 = current.Z;
-    const bn382_Fq2 &x2 = base.X, &y2 = base.Y;
-
-    const bn382_Fq2 D = X1 - x2 * Z1;          // D = X1 - X2*Z1
-    const bn382_Fq2 E = Y1 - y2 * Z1;          // E = Y1 - Y2*Z1
-    const bn382_Fq2 F = D.squared();           // F = D^2
-    const bn382_Fq2 G = E.squared();           // G = E^2
-    const bn382_Fq2 H = D*F;                   // H = D*F
-    const bn382_Fq2 I = X1 * F;                // I = X1 * F
-    const bn382_Fq2 J = H + Z1*G - (I+I);      // J = H + Z1*G - (I+I)
-
-    current.X = D * J;                           // X3 = D*J
-    current.Y = E * (I-J)-(H * Y1);              // Y3 = E*(I-J)-(H*Y1)
-    current.Z = Z1 * H;                          // Z3 = Z1*H
-    c.ell_0 = bn382_twist * (E * x2 - D * y2); // ell_0 = xi * (E * X2 - D * Y2)
-    c.ell_VV = - E;                              // ell_VV = - E (later: * xP)
-    c.ell_VW = D;                                // ell_VW = D (later: * yP    )
 }
 
 bn382_ate_G1_precomp bn382_ate_precompute_G1(const bn382_G1& P)
 {
     enter_block("Call to bn382_ate_precompute_G1");
 
-    bn382_G1 Pcopy = P;
-    Pcopy.to_affine_coordinates();
-
     bn382_ate_G1_precomp result;
-    result.PX = Pcopy.X;
-    result.PY = Pcopy.Y;
+    bn::ecop::NormalizeJac(result.P, P.coord);
 
     leave_block("Call to bn382_ate_precompute_G1");
     return result;
@@ -306,242 +176,37 @@ bn382_ate_G2_precomp bn382_ate_precompute_G2(const bn382_G2& Q)
 {
     enter_block("Call to bn382_ate_precompute_G2");
 
-    bn382_G2 Qcopy(Q);
-    Qcopy.to_affine_coordinates();
-
-    bn382_Fq two_inv = (bn382_Fq("2").inverse()); // could add to global params if needed
-
     bn382_ate_G2_precomp result;
-    result.QX = Qcopy.X;
-    result.QY = Qcopy.Y;
-
-    bn382_G2 R;
-    R.X = Qcopy.X;
-    R.Y = Qcopy.Y;
-    R.Z = bn382_Fq2::one();
-
-    const bigint<bn382_Fr::num_limbs> &loop_count = bn382_ate_loop_count;
-    bool found_one = false;
-    bn382_ate_ell_coeffs c;
-
-    for (long i = loop_count.max_bits(); i >= 0; --i)
-    {
-        const bool bit = loop_count.test_bit(i);
-        if (!found_one)
-        {
-            /* this skips the MSB itself */
-            found_one |= bit;
-            continue;
-        }
-
-        doubling_step_for_flipped_miller_loop(two_inv, R, c);
-        result.coeffs.push_back(c);
-
-        if (bit)
-        {
-            mixed_addition_step_for_flipped_miller_loop(Qcopy, R, c);
-            result.coeffs.push_back(c);
-        }
-    }
-
-    bn382_G2 Q1 = Qcopy.mul_by_q();
-    assert(Q1.Z == bn382_Fq2::one());
-    bn382_G2 Q2 = Q1.mul_by_q();
-    assert(Q2.Z == bn382_Fq2::one());
-
-    if (bn382_ate_is_loop_count_neg)
-    {
-        R.Y = - R.Y;
-    }
-    Q2.Y = - Q2.Y;
-
-    mixed_addition_step_for_flipped_miller_loop(Q1, R, c);
-    result.coeffs.push_back(c);
-
-    mixed_addition_step_for_flipped_miller_loop(Q2, R, c);
-    result.coeffs.push_back(c);
+    bn::components::precomputeG2(result.coeffs, result.Q, Q.coord);
 
     leave_block("Call to bn382_ate_precompute_G2");
     return result;
 }
 
 bn382_Fq12 bn382_ate_miller_loop(const bn382_ate_G1_precomp &prec_P,
-                                     const bn382_ate_G2_precomp &prec_Q)
+                                 const bn382_ate_G2_precomp &prec_Q)
 {
-    enter_block("Call to bn382_ate_miller_loop");
-
-    bn382_Fq12 f = bn382_Fq12::one();
-
-    bool found_one = false;
-    size_t idx = 0;
-
-    const bigint<bn382_Fr::num_limbs> &loop_count = bn382_ate_loop_count;
-    bn382_ate_ell_coeffs c;
-
-    for (long i = loop_count.max_bits(); i >= 0; --i)
-    {
-        const bool bit = loop_count.test_bit(i);
-        if (!found_one)
-        {
-            /* this skips the MSB itself */
-            found_one |= bit;
-            continue;
-        }
-
-        /* code below gets executed for all bits (EXCEPT the MSB itself) of
-           bn382_param_p (skipping leading zeros) in MSB to LSB
-           order */
-
-        c = prec_Q.coeffs[idx++];
-        f = f.squared();
-        f = f.mul_by_024(c.ell_0, prec_P.PY * c.ell_VW, prec_P.PX * c.ell_VV);
-
-        if (bit)
-        {
-            c = prec_Q.coeffs[idx++];
-            f = f.mul_by_024(c.ell_0, prec_P.PY * c.ell_VW, prec_P.PX * c.ell_VV);
-        }
-
-    }
-
-    if (bn382_ate_is_loop_count_neg)
-    {
-    	f = f.inverse();
-    }
-
-    c = prec_Q.coeffs[idx++];
-    f = f.mul_by_024(c.ell_0,prec_P.PY * c.ell_VW,prec_P.PX * c.ell_VV);
-
-    c = prec_Q.coeffs[idx++];
-    f = f.mul_by_024(c.ell_0,prec_P.PY * c.ell_VW,prec_P.PX * c.ell_VV);
-
-    leave_block("Call to bn382_ate_miller_loop");
+    bn382_Fq12 f;
+    bn::components::millerLoop(f.elem, prec_Q.coeffs, prec_P.P);
     return f;
 }
 
-bn382_Fq12 bn382_ate_double_miller_loop(const bn382_ate_G1_precomp &prec_P1,
-                                     const bn382_ate_G2_precomp &prec_Q1,
-                                     const bn382_ate_G1_precomp &prec_P2,
-                                     const bn382_ate_G2_precomp &prec_Q2)
+bn382_Fq12 bn382_double_ate_miller_loop(const bn382_ate_G1_precomp &prec_P1,
+                                        const bn382_ate_G2_precomp &prec_Q1,
+                                        const bn382_ate_G1_precomp &prec_P2,
+                                        const bn382_ate_G2_precomp &prec_Q2)
 {
-    enter_block("Call to bn382_ate_double_miller_loop");
-
-    bn382_Fq12 f = bn382_Fq12::one();
-
-    bool found_one = false;
-    size_t idx = 0;
-
-    const bigint<bn382_Fr::num_limbs> &loop_count = bn382_ate_loop_count;
-    for (long i = loop_count.max_bits(); i >= 0; --i)
-    {
-        const bool bit = loop_count.test_bit(i);
-        if (!found_one)
-        {
-            /* this skips the MSB itself */
-            found_one |= bit;
-            continue;
-        }
-
-        /* code below gets executed for all bits (EXCEPT the MSB itself) of
-           bn382_param_p (skipping leading zeros) in MSB to LSB
-           order */
-
-        bn382_ate_ell_coeffs c1 = prec_Q1.coeffs[idx];
-        bn382_ate_ell_coeffs c2 = prec_Q2.coeffs[idx];
-        ++idx;
-
-        f = f.squared();
-
-        f = f.mul_by_024(c1.ell_0, prec_P1.PY * c1.ell_VW, prec_P1.PX * c1.ell_VV);
-        f = f.mul_by_024(c2.ell_0, prec_P2.PY * c2.ell_VW, prec_P2.PX * c2.ell_VV);
-
-        if (bit)
-        {
-            bn382_ate_ell_coeffs c1 = prec_Q1.coeffs[idx];
-            bn382_ate_ell_coeffs c2 = prec_Q2.coeffs[idx];
-            ++idx;
-
-            f = f.mul_by_024(c1.ell_0, prec_P1.PY * c1.ell_VW, prec_P1.PX * c1.ell_VV);
-            f = f.mul_by_024(c2.ell_0, prec_P2.PY * c2.ell_VW, prec_P2.PX * c2.ell_VV);
-        }
-    }
-
-    if (bn382_ate_is_loop_count_neg)
-    {
-    	f = f.inverse();
-    }
-
-    bn382_ate_ell_coeffs c1 = prec_Q1.coeffs[idx];
-    bn382_ate_ell_coeffs c2 = prec_Q2.coeffs[idx];
-    ++idx;
-    f = f.mul_by_024(c1.ell_0, prec_P1.PY * c1.ell_VW, prec_P1.PX * c1.ell_VV);
-    f = f.mul_by_024(c2.ell_0, prec_P2.PY * c2.ell_VW, prec_P2.PX * c2.ell_VV);
-
-    c1 = prec_Q1.coeffs[idx];
-    c2 = prec_Q2.coeffs[idx];
-    ++idx;
-    f = f.mul_by_024(c1.ell_0, prec_P1.PY * c1.ell_VW, prec_P1.PX * c1.ell_VV);
-    f = f.mul_by_024(c2.ell_0, prec_P2.PY * c2.ell_VW, prec_P2.PX * c2.ell_VV);
-
-    leave_block("Call to bn382_ate_double_miller_loop");
-
+    bn382_Fq12 f;
+    bn::components::millerLoop2(f.elem, prec_Q1.coeffs, prec_P1.P, prec_Q2.coeffs, prec_P2.P);
     return f;
 }
 
-bn382_Fq12 bn382_ate_pairing(const bn382_G1& P, const bn382_G2 &Q)
+bn382_GT bn382_final_exponentiation(const bn382_Fq12 &elt)
 {
-    enter_block("Call to bn382_ate_pairing");
-    bn382_ate_G1_precomp prec_P = bn382_ate_precompute_G1(P);
-    bn382_ate_G2_precomp prec_Q = bn382_ate_precompute_G2(Q);
-    bn382_Fq12 result = bn382_ate_miller_loop(prec_P, prec_Q);
-    leave_block("Call to bn382_ate_pairing");
-    return result;
-}
-
-bn382_GT bn382_ate_reduced_pairing(const bn382_G1 &P, const bn382_G2 &Q)
-{
-    enter_block("Call to bn382_ate_reduced_pairing");
-    const bn382_Fq12 f = bn382_ate_pairing(P, Q);
-    const bn382_GT result = bn382_final_exponentiation(f);
-    leave_block("Call to bn382_ate_reduced_pairing");
-    return result;
-}
-
-/* choice of pairing */
-
-bn382_G1_precomp bn382_precompute_G1(const bn382_G1& P)
-{
-    return bn382_ate_precompute_G1(P);
-}
-
-bn382_G2_precomp bn382_precompute_G2(const bn382_G2& Q)
-{
-    return bn382_ate_precompute_G2(Q);
-}
-
-bn382_Fq12 bn382_miller_loop(const bn382_G1_precomp &prec_P,
-                          const bn382_G2_precomp &prec_Q)
-{
-    return bn382_ate_miller_loop(prec_P, prec_Q);
-}
-
-bn382_Fq12 bn382_double_miller_loop(const bn382_G1_precomp &prec_P1,
-                                 const bn382_G2_precomp &prec_Q1,
-                                 const bn382_G1_precomp &prec_P2,
-                                 const bn382_G2_precomp &prec_Q2)
-{
-    return bn382_ate_double_miller_loop(prec_P1, prec_Q1, prec_P2, prec_Q2);
-}
-
-bn382_Fq12 bn382_pairing(const bn382_G1& P,
-                      const bn382_G2 &Q)
-{
-    return bn382_ate_pairing(P, Q);
-}
-
-bn382_GT bn382_reduced_pairing(const bn382_G1 &P,
-                             const bn382_G2 &Q)
-{
-    return bn382_ate_reduced_pairing(P, Q);
+    enter_block("Call to bn382_final_exponentiation");
+    bn382_GT eltcopy = elt;
+    eltcopy.elem.final_exp();
+    leave_block("Call to bn382_final_exponentiation");
+    return eltcopy;
 }
 } // libff
