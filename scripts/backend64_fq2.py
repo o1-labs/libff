@@ -34,6 +34,32 @@ def print_name(name, num):
     print(name + " : " + " " * (140 - (len(s) + len(name))) + s)
     return
 
+
+mod = BN382_q ** 2
+mod_minus_one = mod - 1 
+two_to_the_s = 0b100000000000000000000000000000000000000000000000000000000000000000000
+print(math.log2(two_to_the_s))
+
+t = (mod - 1)/ 2**68
+print('{:.1f}'.format(t))
+
+# fq2_s : int
+
+# fq2_nqr_to_t : fq2 elt (fq, fq)
+nqr = [0, 2]
+t = 104123666252559599194082820731495841242513418965476562843279162460041891658890113434602162857661651873535350654374440669491702604974560757949770346152587382894324840566507020516312959205272607438081650000396288
+
+nqr_to_t = pow(2, t, BN382_q)
+print_name("nqr_to_t", nqr_to_t)
+
+t_minus_1_over_2 = (t - 1 / 2)
+print('{:.1f}'.format(t_minus_1_over_2))
+
+
+# fq2_t_minus_1_over_2 : "mie::Vuint" (big int)
+
+
+
 # for Fq2
 NONRESIDUE = 7
 NONRESIDUE_LIMBS = [0xffffffffffffffcf,
