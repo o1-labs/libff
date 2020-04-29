@@ -15,6 +15,14 @@
 
 /************************ Pick the elliptic curve ****************************/
 
+#ifdef CURVE_BN382
+#define LIBFF_DEFAULT_EC_PP_DEFINED
+#include <libff/algebra/curves/bn382/bn382_pp.hpp>
+namespace libff {
+typedef bn382_pp default_ec_pp;
+} // libff
+#endif
+
 #ifdef CURVE_ALT_BN128
 #define LIBFF_DEFAULT_EC_PP_DEFINED
 #include <libff/algebra/curves/alt_bn128/alt_bn128_pp.hpp>
