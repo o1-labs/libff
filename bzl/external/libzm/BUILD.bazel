@@ -1,0 +1,5 @@
+alias(
+    name = "libzm",
+    actual = "@ate_pairing//zm",
+    visibility = ["//visibility:public"],
+)

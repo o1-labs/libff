@@ -1,0 +1,3 @@
+# ignore file for search tools ripgrep, ag
+build
+depends
