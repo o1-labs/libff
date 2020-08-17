@@ -94,73 +94,18 @@ This will install `libff.a` into `/install/path/lib`; so your application should
 ### Bazel
 
 ```
+$ git clone https://github.com/obazl/libff --recursive
+$ cd libff
+$ bazel test test
 $ bazel query 'attr(visibility, "//visibility:public", libff/...:*)'
 $ bazel build libff
 $ bazel build libff/algebra/...
 ...etc...
-$ bazel test test
 ```
 
-To use in an app, add the following to your WORKSPACE file.
-
-```
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-http_archive(
-    name = "rules_foreign_cc",
-    strip_prefix="rules_foreign_cc-master",
-    url = "https://github.com/bazelbuild/rules_foreign_cc/archive/master.zip",
-)
-load("@rules_foreign_cc//:workspace_definitions.bzl",
-     "rules_foreign_cc_dependencies")
-rules_foreign_cc_dependencies()
-
-## Bazelized external repos:
-local_repository( name = "libff" , path = "depends/libff")
-# http_archive(
-#     name = "libff",
-#     urls = ["https://github.com/obazl/libff/archive/bzl-1.0.tar.gz"],
-#     strip_prefix = "libff-bzl-1.0",
-#     sha256 = ...obtain from github...
-# )
-local_repository( name = "ate_pairing" , path = "depends/ate-pairing")
-# http_archive(
-#     name = "ate_pairing",
-#     urls = ["https://github.com/obazl/ate-pairing/archive/bzl-1.0.tar.gz"],
-#     strip_prefix = "ate-pairing-bzl-1.0",
-#     sha256 = ...obtain from github...
-# )
-## build target: @xbyak//xbyak
-local_repository( name = "xbyak" , path = "depends/xbyak")
-# http_archive(
-#     name = "xbyak",
-#     urls = ["https://github.com/obazl/xbyak/archive/bzl-1.0.tar.gz"],
-#     strip_prefix = "xbyak-bzl-1.0",
-#     sha256 = ...obtain from github...
-# )
-## Non-bazelized external repos:
-all_content = """filegroup(name = "all", srcs = glob(["**"]), visibility = ["//visibility:public"])"""
-http_archive(
-    name="openmp",
-    url="https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/openmp-10.0.0.src.tar.xz",
-    sha256="3b9ff29a45d0509a1e9667a0feb43538ef402ea8cfc7df3758a01f20df08adfa",
-    strip_prefix="openmp-10.0.0.src",
-    build_file_content = all_content
-)
-http_archive(
-    name="openssl",
-    url="https://www.openssl.org/source/openssl-1.1.1g.tar.gz",
-    sha256="ddb04774f1e32f0c49751e21b67216ac87852ceb056b75209af2443400636d46",
-    strip_prefix="openssl-1.1.1g",
-    build_file_content = all_content
-)
-http_archive(
-    name="libgmp",
-    url="https://gmplib.org/download/gmp/gmp-6.2.0.tar.xz",
-    sha256="258e6cd51b3fbdfc185c716d55f82c08aff57df0c6fbd143cf6ed561267a1526",
-    strip_prefix = "gmp-6.2.0",
-    build_file_content = all_content
-)
-```
+To use in an app, copy the repository rules for ate-pairing, xbyak,
+openmp, openssl, and libgmp from this WORKSPACE to the client's
+WORKSPACE file.
 
 ## Testing
 
