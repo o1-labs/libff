@@ -24,32 +24,31 @@ http_archive(
 load("@rules_foreign_cc//:workspace_definitions.bzl", "rules_foreign_cc_dependencies")
 rules_foreign_cc_dependencies()
 
-# If you use submodules installed in "depends/", use the
-# `local_repository` rules; if you are not using submodules, use the
-# `http_archive` rules.
-
 ################################
 ##  Bazelized external repos  ##
 
+# To use submodules installed in "depends/", use the
+# `local_repository` rules; otherwise, use the `http_archive` rules.
+
 # build target: //bzl/external/libzm alias for @ate_pairing//zm
 local_repository( name = "ate_pairing" , path = "depends/ate-pairing")
-http_archive(
-    name = "ate_pairing",
-    urls = ["https://github.com/obazl/ate-pairing/archive/bzl-1.0.tar.gz"],
-    # commit: 8d34a92e92b0c661291dfc177f9e2b61c78597c4
-    strip_prefix = "ate-pairing-bzl-1.0",
-    # sha256 = ...
-)
+# http_archive(
+#     name = "ate_pairing",
+#     urls = ["https://github.com/obazl/ate-pairing/archive/bzl-1.0.tar.gz"],
+#     # commit: 8d34a92e92b0c661291dfc177f9e2b61c78597c4
+#     strip_prefix = "ate-pairing-bzl-1.0",
+#     sha256 = "e89a6a33eda28e93ae616b57ba5d4693f7b434b4d3407462caaab46a535d35ad"
+# )
 
 ## build target: @xbyak//xbyak
-# local_repository( name = "xbyak" , path = "depends/xbyak")
-http_archive(
-    name = "xbyak",
-    urls = ["https://github.com/obazl/xbyak/archive/bzl-1.0.tar.gz"],
-    # commit: 89f7b734cb934518f12cb5836e6aca18f999172a
-    strip_prefix = "xbyak-bzl-1.0",
-    # sha256 = "5a24976ed246c0c2fcfd51a8b32c60760d85f339cebd75d074f9d0bbdd1a61e3"
-)
+local_repository( name = "xbyak" , path = "depends/xbyak")
+# http_archive(
+#     name = "xbyak",
+#     urls = ["https://github.com/obazl/xbyak/archive/bzl-1.0.tar.gz"],
+#     # commit: 89f7b734cb934518f12cb5836e6aca18f999172a
+#     strip_prefix = "xbyak-bzl-1.0",
+#     sha256 = "84fc1e7a73ec9077b05516422775ac90086ef45976aaf43f65368529cb71a75d"
+# )
 
 ################################
 # Non-bazelized external repos #
