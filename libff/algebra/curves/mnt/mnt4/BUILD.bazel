@@ -23,7 +23,7 @@ cc_library(
     linkstatic = True,
     visibility = ["//visibility:public"],
     deps = [
-        "//libff/common:profiling_hpp",
+        "//libff/common:profiling",
         "//libff/algebra/curves",
         "//libff/algebra/curves/mnt",
     ],
