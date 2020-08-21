@@ -2,14 +2,14 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@libff//bzl/config:vars.bzl",
      "CPPFLAGS",
      "DBINARY_OUTPUT", "DCURVE", "DDEBUG",
-     "DMULTICORE", "DNO_PROCPS")
+     "DMULTICORE", "DNO_PROCPS", "DPROFILE_OP_COUNTS")
 
 cc_library(
     name = "double",
     srcs = ["double.cpp"],
     hdrs = ["double.hpp"],
     copts = ["-I."] + CPPFLAGS,
-    defines = DDEBUG,
+    defines = DDEBUG + DPROFILE_OP_COUNTS,
     include_prefix = "libff/common",
     deps = [
         "@libff//libff/algebra/fields:bigint",
@@ -22,7 +22,7 @@ cc_library(
     srcs = ["profiling.cpp"],
     hdrs = ["profiling.hpp"],
     copts = ["-I.", "-Iexternal/libff"] + CPPFLAGS,
-    local_defines = DDEBUG + DNO_PROCPS,
+    local_defines = DDEBUG + DNO_PROCPS + DPROFILE_OP_COUNTS,
     include_prefix = "libff/common",
     deps = [
         ":profiling_hpp",

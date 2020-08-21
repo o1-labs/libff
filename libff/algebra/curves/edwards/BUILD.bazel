@@ -1,5 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("@libff//bzl/config:vars.bzl", "CPPFLAGS", "DDEBUG", "DNO_PT_COMPRESSION")
+load("@libff//bzl/config:vars.bzl", "CPPFLAGS",
+     "DDEBUG", "DNO_PT_COMPRESSION", "DPROFILE_OP_COUNTS")
 
 cc_library(
     name = "edwards",
@@ -8,6 +9,29 @@ cc_library(
         "edwards_g2.cpp",
         "edwards_init.cpp",
         "edwards_pairing.cpp",
+    ],
+    hdrs = [
+        "edwards_g1.hpp",
+        "edwards_g2.hpp",
+        "edwards_init.hpp",
+        "edwards_pairing.hpp",
+    ],
+    copts = ["-I."] + CPPFLAGS,
+    local_defines = DDEBUG + DNO_PT_COMPRESSION + DPROFILE_OP_COUNTS,
+    include_prefix = "libff/algebra/curves/edwards",
+    linkstatic = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        "//libff/common:profiling",
+        "//libff/algebra/curves",
+        "//libff/algebra/curves/edwards:public_params",
+        "//libff/algebra/fields",
+    ],
+)
+
+cc_library(
+    name = "public_params",
+    srcs = [
         "edwards_pp.cpp",
     ],
     hdrs = [
@@ -18,12 +42,11 @@ cc_library(
         "edwards_pp.hpp",
     ],
     copts = ["-I."] + CPPFLAGS,
-    local_defines = DDEBUG + DNO_PT_COMPRESSION,
+    local_defines = DDEBUG + DNO_PT_COMPRESSION + DPROFILE_OP_COUNTS,
     include_prefix = "libff/algebra/curves/edwards",
     linkstatic = True,
     visibility = ["//visibility:public"],
     deps = [
-        "//libff/common:profiling_hpp",
         "//libff/algebra/curves",
         "//libff/algebra/fields",
     ],

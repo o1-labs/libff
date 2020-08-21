@@ -1,7 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load("@libff//bzl/config:vars.bzl",
-     "CPPFLAGS",
-     "DBINARY_OUTPUT", "DCURVE", "DDEBUG", "DLIBGMP", "DMONTGOMERY_OUTPUT", "DUSE_ASM")
+     "CPPFLAGS")
+     # "DBINARY_OUTPUT", "DCURVE", "DDEBUG", "DMONTGOMERY_OUTPUT", "DUSE_ASM")
 
 cc_test(
     name = "tests",

@@ -1,7 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 load("@libff//bzl/config:vars.bzl",
      "CPPFLAGS",
-     "DDEBUG", "DLIBGMP", "DLOWMEM", "DMULTICORE", "DUSE_ASM")
+     "DDEBUG", "DLOWMEM", "DMULTICORE", "DUSE_ASM")
 
 cc_library(
     name = "scalar_multiplication",
@@ -12,7 +12,7 @@ cc_library(
         "wnaf.tcc",
     ],
     copts = ["-I."] + CPPFLAGS,
-    defines = DDEBUG + DLIBGMP + DLOWMEM + DMULTICORE + DUSE_ASM,
+    defines = DDEBUG + DLOWMEM + DMULTICORE + DUSE_ASM,
     include_prefix = "libff/algebra/scalar_multiplication",
     linkstatic = True,
     visibility = ["//visibility:public"],

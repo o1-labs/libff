@@ -1,7 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@libff//bzl/config:vars.bzl",
      "CPPFLAGS",
-     "DBINARY_OUTPUT", "DDEBUG", "DNO_PT_COMPRESSION")
+     "DBINARY_OUTPUT", "DDEBUG", "DNO_PT_COMPRESSION", "DPROFILE_OP_COUNTS")
 
 cc_library(
     name = "bn128",
@@ -27,15 +27,16 @@ cc_library(
     ]),
     copts = ["-I.", "-Iexternal"] + CPPFLAGS,
     defines = ["BN_SUPPORT_SNARK=1", "CURVE_BN128"] + DBINARY_OUTPUT + DNO_PT_COMPRESSION,
-    local_defines = DDEBUG,
+    local_defines = DDEBUG + DPROFILE_OP_COUNTS,
     include_prefix = "libff/algebra/curves/bn128",
     linkstatic = True,
     visibility = ["//visibility:public"],
     deps = [
-        # "//bzl/external/libzm",
-        "@ate_pairing//:zm",
         "//libff/common:profiling_hpp",
         "//libff/algebra/curves",
         "//libff/algebra/fields:utils",
-    ],
+    ] + select({
+        "//bzl/config:enable_curve_bn128": ["@ate_pairing//libzm"],
+        "//conditions:default": []
+    })
 )

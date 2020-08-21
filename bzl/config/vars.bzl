@@ -7,24 +7,30 @@ load("@bazel_skylib//lib:selects.bzl", "selects")
 
 WARNINGS = ["-Wall", "-Wextra", "-Wno-unused-variable"]
 
+DMULTICORE = select({
+    # shared config
+    "//bzl/config:with_openmp": ["MULTICORE"],
+    "//conditions:default": []
+})
+
 DEBUG_FLAGS = select({
-    "//:enable_debug": ["-g"],
+    "//bzl/config:enable_debug": ["-g"],
     "//conditions:default": ["-g0"]
 }) + select({
-    "//:with_verbose": ["-v"],
+    "//bzl/config:enable_verbose": ["-v"],
     "//conditions:default": []
 }) + select({
-    "//:macos_disable_debug": ["-UDEBUG"],
+    "//bzl/config:macos_disable_debug": ["-UDEBUG"],
     "//conditions:default": []
 })
 
 OPTIMIZE_CXXFLAGS = select({
-    "@//bzl/config:enable_optimization": ["-flto", "-fuse-linker-plugin", "-O2"],
+    "//bzl/config:enable_optimization": ["-flto", "-fuse-linker-plugin", "-O2"],
     "//conditions:default": ["-O0"]
 })
 
 OPTIMIZE_LINKFLAGS = select({
-    "@//bzl/config:enable_optimization": ["-flto", "-fuse-linker-plugin"],
+    "//bzl/config:enable_optimization": ["-flto", "-fuse-linker-plugin"],
     "//conditions:default": []
 })
 
@@ -34,77 +40,80 @@ CXXFLAGS = OPTIMIZE_CXXFLAGS
 LDFLAGS  = []
 #######################
 ####    DEFINES    ####
-DDEBUG = select({
-    "//:enable_debug": ["DEBUG"],
-    "//conditions:default": [] # ["NDEBUG"]
+
+DCXX_DEBUG = select({
+    "//bzl/config:linux_cxx_debug": ["_GLIBCXX_DEBUG", "_GLIBCXX_DEBUG_PEDANTIC"],
+    "//bzl/config:macos_cxx_debug": ["_LIBCPP_DEBUG"],
+    "//conditions:default": []
 })
 
+DDEBUG = select({
+    "//bzl/config:enable_debug": ["DEBUG"],
+    "//conditions:default": [] # ["NDEBUG"]
+}) + DCXX_DEBUG
+
 DBINARY_OUTPUT = select({
-    "@//bzl/config:enable_binary_output": ["BINARY_OUTPUT"],
+    "//bzl/config:enable_binary_output": ["BINARY_OUTPUT"],
     "//conditions:default": []
 })
 
 DCURVE = select({
-    "@//:curve_bn128": ["CURVE_BN128"],
-    "@//:curve_alt_bn128": ["CURVE_ALT_BN128"],
-    "@//:curve_edwards": ["CURVE_EDWARDS"],
-    "@//:curve_mnt4": ["CURVE_MNT4"],
-    "@//:curve_mnt6": ["CURVE_MNT6"],
+    "@//bzl/config:enable_curve_bn128": ["CURVE_BN128", "BN_SUPPORT_SNARK"],
+    "@//bzl/config:enable_curve_alt_bn128": ["CURVE_ALT_BN128"],
+    "@//bzl/config:enable_curve_edwards": ["CURVE_EDWARDS"],
+    "@//bzl/config:enable_curve_mnt4": ["CURVE_MNT4"],
+    "@//bzl/config:enable_curve_mnt6": ["CURVE_MNT6"],
+    # "@//bzl/config:enable_curve_bn128": ["CURVE_BN128", "BN_SUPPORT_SNARK"],
+    # "@//bzl/config:enable_curve_alt_bn128": ["CURVE_ALT_BN128"],
+    # "@//bzl/config:enable_curve_edwards": ["CURVE_EDWARDS"],
+    # "@//bzl/config:enable_curve_mnt4": ["CURVE_MNT4"],
+    # "@//bzl/config:enable_curve_mnt6": ["CURVE_MNT6"],
     "//conditions:default": ["CURVE_BN128"]
 })
 
 # transitive, for ate_pairing:
-DLIBGMP = select({
-    "@//bzl/config:enable_libgmp" : ["MIE_ATE_USE_GMP"],
-    "//conditions:default": []
-})
+# DLIBGMP = select({
+#     "@//bzl/config:with_libgmp" : ["MIE_ATE_USE_GMP"],
+#     "//conditions:default": []
+# })
 
 DLOWMEM = select({
-    "@//bzl/config:enable_lowmem": ["LOWMEM"],
+    "//bzl/config:enable_lowmem": ["LOWMEM"],
     "//conditions:default": []
 })
 
 DMONTGOMERY_OUTPUT = select({
-    "@//bzl/config:enable_montgomery_output": ["MONTGOMERY_OUTPUT"],
-    "//conditions:default": []
-})
-
-DMULTICORE = select({
-    "@//bzl/config:enable_multicore": ["MULTICORE"],
+    "//bzl/config:enable_montgomery_output": ["MONTGOMERY_OUTPUT"],
     "//conditions:default": []
 })
 
 DNO_PT_COMPRESSION = select({
-    "@//bzl/config:disable_point_compression": ["NO_PT_COMPRESSION"],
+    "//bzl/config:disable_pt_compression": ["NO_PT_COMPRESSION"],
     "//conditions:default": []
 })
 
 DPROFILE_OP_COUNTS = select({
-    "@//bzl/config:enable_profile_op_counts": ["PROFILE_OP_COUNTS"],
+    "//bzl/config:enable_profile_op_counts": ["PROFILE_OP_COUNTS"],
     "//conditions:default": []
 })
 
 DUSE_MIXED_ADDITION = select({
-    "@//bzl/config:enable_mixed_addition": ["USE_MIXED_ADDITION"],
+    "//bzl/config:enable_mixed_addition": ["USE_MIXED_ADDITION"],
     "//conditions:default": []
 })
 
 DNO_PROCPS = selects.with_or({
-    ("@//bzl/config:disable_procps", "@//bzl/host:macos"): ["NO_PROCPS"],
-    "//conditions:default": []
-})
-
-DCXX_DEBUG = select({
-    "@//bzl/config:enable_cxx_debug": ["_GLIBCXX_DEBUG", "_GLIBCXX_DEBUG_PEDANTIC"],
+    ("//bzl/config:without_procps",
+     "@//bzl/host:macos"): ["NO_PROCPS"],
     "//conditions:default": []
 })
 
 DOPTIMIZE = select({
-    "@//bzl/config:enable_optimization": ["NDEBUG"],
+    "//bzl/config:enable_optimization": ["NDEBUG"],
     "//conditions:default": []
 })
 
 DUSE_ASM = select({
-    "@//bzl/config:enable_asm": ["USE_ASM"],
+    "//bzl/config:enable_asm": ["USE_ASM"],
     "//conditions:default": []
 })

@@ -9,14 +9,13 @@ cc_library(
         "-Iexternal/libff"
     ],
     deps = [
-        "//bzl/external/libzm",
         "//libff/common/default_types",
         "//libff/algebra/curves/alt_bn128",
         "//libff/algebra/curves/edwards",
         "//libff/algebra/curves/mnt/mnt4",
         "//libff/algebra/curves/mnt/mnt6",
     ] + select({
-        "@//:curve_bn128": ["//libff/algebra/curves/bn128"],
+        "@//bzl/config:enable_curve_bn128": ["//libff/algebra/curves/bn128"],
         "//conditions:default": [],
     })
 )

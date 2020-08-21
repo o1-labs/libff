@@ -1,5 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("@libff//bzl/config:vars.bzl", "CPPFLAGS", "DDEBUG", "DNO_PT_COMPRESSION")
+load("@libff//bzl/config:vars.bzl", "CPPFLAGS",
+     "DDEBUG", "DNO_PT_COMPRESSION", "DPROFILE_OP_COUNTS")
 
 cc_library(
     name = "mnt4",
@@ -8,6 +9,29 @@ cc_library(
         "mnt4_g2.cpp",
         "mnt4_init.cpp",
         "mnt4_pairing.cpp",
+    ]),
+    hdrs = [
+        "mnt4_g1.hpp",
+        "mnt4_g2.hpp",
+        "mnt4_init.hpp",
+        "mnt4_pairing.hpp",
+    ],
+    copts = ["-I."] + CPPFLAGS,
+    local_defines = DDEBUG + DNO_PT_COMPRESSION + DPROFILE_OP_COUNTS,
+    include_prefix = "libff/algebra/curves/mnt/mnt4",
+    linkstatic = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        "//libff/common:profiling",
+        "//libff/algebra/curves",
+        "//libff/algebra/curves/mnt",
+        "//libff/algebra/curves/mnt/mnt4:public_params",
+    ],
+)
+
+cc_library(
+    name = "public_params",
+    srcs = glob([
         "mnt4_pp.cpp",
     ]),
     hdrs = [
@@ -18,12 +42,11 @@ cc_library(
         "mnt4_pp.hpp",
     ],
     copts = ["-I."] + CPPFLAGS,
-    local_defines = DDEBUG + DNO_PT_COMPRESSION,
+    local_defines = DDEBUG + DNO_PT_COMPRESSION + DPROFILE_OP_COUNTS,
     include_prefix = "libff/algebra/curves/mnt/mnt4",
     linkstatic = True,
     visibility = ["//visibility:public"],
     deps = [
-        "//libff/common:profiling",
         "//libff/algebra/curves",
         "//libff/algebra/curves/mnt",
     ],

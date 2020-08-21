@@ -30,7 +30,7 @@ rules_foreign_cc_dependencies()
 # To use submodules installed in "depends/", use the
 # `local_repository` rules; otherwise, use the `http_archive` rules.
 
-# build target: //bzl/external/libzm alias for @ate_pairing//zm
+# Used only for bn128, in libff/algebra/curves/bn128/BUILD.bazel, target: @ate_pairing//libzm
 local_repository( name = "ate_pairing" , path = "depends/ate-pairing")
 # http_archive(
 #     name = "ate_pairing",
