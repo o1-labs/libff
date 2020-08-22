@@ -1,6 +1,8 @@
 [submodule "depends/ate-pairing"]
 	path = depends/ate-pairing
 	url = https://github.com/obazl/ate-pairing.git
+	branch = snarky
 [submodule "depends/xbyak"]
 	path = depends/xbyak
 	url = https://github.com/obazl/xbyak.git
+	branch = snarky
