@@ -33,5 +33,7 @@ GroupT scalar_mul(const GroupT &base, const bigint<m> &scalar)
     return result;
 }
 
-} // libff
+}
+
+// libff
 #endif // CURVE_UTILS_TCC_

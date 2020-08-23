@@ -93,16 +93,20 @@ if(CMAKE_COMPILER_IS_GNUCXX OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   # Common compilation flags and warning configuration
   set(
     CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wfatal-errors"
+    "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -Wextra -Wfatal-errors"
   )
   if("${MULTICORE}")
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+      if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Xpreprocessor -fopenmp")
+      else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+      endif()
   endif()
   # Default optimizations flags (to override, use -DOPT_FLAGS=...)
   if("${OPT_FLAGS}" STREQUAL "")
     set(
       OPT_FLAGS
-      "-ggdb3 -O2 -march=native -mtune=native"
+      "-ggdb3 -O2 -march=westmere -mtune=skylake-avx512"
     )
   endif()
 endif()
@@ -116,13 +120,10 @@ find_path(GMP_INCLUDE_DIR NAMES gmp.h)
 find_library(GMP_LIBRARIES NAMES gmp libgmp)
 find_library(GMPXX_LIBRARIES NAMES gmpxx libgmpxx)
 
-include(FindPkgConfig)
-pkg_check_modules(
-  CRYPTO
-  REQUIRED
+find_library(SODIUM_LIBRARIES NAMES sodium libsodium)
 
-  libcrypto
-)
+find_package(OpenSSL REQUIRED)
+INCLUDE_DIRECTORIES(${OPENSSL_INCLUDE_DIR})
 
 if("${WITH_PROCPS}")
   pkg_check_modules(
